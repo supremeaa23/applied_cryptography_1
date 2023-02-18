@@ -18,7 +18,7 @@ class PAPServer:
     def __init__(self):
         self._user_db = {}  # user's login&pass store. {login: hash(pass)}
 
-    def register_user(self, usr_login: str, usr_pass: str):
+    def register_user(self, usr_login: str, usr_pass: str) -> None:
         logger.info(f"Starting user {usr_login} registration")
         if usr_login in self._user_db:
             raise PAPSeverException(f"User {usr_login} registration is failed")
@@ -51,7 +51,7 @@ class PAPClient:
             logging.error(err)
             sys.exit(EXIT_CODE)
 
-    def login_user(self, server: PAPServer):
+    def login_user(self, server: PAPServer) -> None:
         verify_status = server.verify_user(self._usr_login, self._usr_pass)
         if verify_status:
             logger.info(f"User {self._usr_login} auth: SUCCESS")
