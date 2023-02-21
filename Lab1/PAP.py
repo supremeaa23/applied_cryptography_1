@@ -1,6 +1,5 @@
 import logging
 import sys
-from pygost.gost34112012256 import GOST34112012256
 
 EXIT_CODE = 1
 
@@ -8,23 +7,16 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("Password Access Protocol")
 
 
-def streebog_hash(value: bytes) -> bytes:
-    hash_obj = GOST34112012256()
-    hash_obj.update(value)
-    return hash_obj.digest().hex()
-
-
 class PAPServer:
     def __init__(self):
-        self._user_db = {}  # user login&pass store. {login: hash(pass)}
+        self._user_db = {}  # user login&pass store. {login: pass}
 
     def register_user(self, usr_login: str, usr_pass: str) -> None:
         logger.info(f"Starting user {usr_login} registration")
         if usr_login in self._user_db:
             logger.info(f"User {usr_login} already exists")
             return None
-        hash_usr_pass = streebog_hash(usr_pass.encode())
-        self._user_db[usr_login] = hash_usr_pass
+        self._user_db[usr_login] = usr_pass
         logger.info(f"User {usr_login} registration is finished")
 
     def verify_user(self, usr_login: str, usr_pass: str) -> bool:
@@ -32,8 +24,7 @@ class PAPServer:
             logger.info(f"No user {usr_login}")
             return False
 
-        hash_usr_pass = streebog_hash(usr_pass.encode())
-        if hash_usr_pass == self._user_db[usr_login]:
+        if usr_pass == self._user_db[usr_login]:
             return True
         else:
             logger.info(f"Wrong password for user {usr_login}")

@@ -6,7 +6,7 @@ from Crypto.Random import get_random_bytes
 EXIT_CODE = 1
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-logger = logging.getLogger("Password Access Protocol")
+logger = logging.getLogger("Challenge-Handshake Authentication Protocol")
 
 
 def streebog_hash(*args: bytes) -> bytes:
