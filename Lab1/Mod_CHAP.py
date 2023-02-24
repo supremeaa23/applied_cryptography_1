@@ -1,6 +1,5 @@
 import logging
 import sys
-
 from pygost.gost34112012256 import GOST34112012256
 from Crypto.Random import get_random_bytes
 
@@ -11,6 +10,7 @@ logger = logging.getLogger("Modified Challenge-Handshake Authentication Protocol
 
 
 def streebog_hash(*args: bytes) -> bytes:
+    # Функция хеширования алгоритмом "Стрибог".
     hash_obj = GOST34112012256()
     for value in args:
         hash_obj.update(value)
@@ -18,6 +18,10 @@ def streebog_hash(*args: bytes) -> bytes:
 
 
 class ModifiedCHAPServer:
+    # Класс выступает в роли сервера.
+    # Иницилизируется "база данных" пользователей {логин: [пароль, случайное число клиента]},
+    # Задаются логин и пароль сервера.
+    # Задается пустым значением случайное число, получаемое от клиента
     def __init__(self):
         self._user_db = {}  # user login&pass store. {login: [pass, client_num]}
         self._login = "Server"
@@ -25,6 +29,10 @@ class ModifiedCHAPServer:
         self._client_num = None
 
     def register_user(self, client: "ModifiedCHAPClient"):
+        # Функция регистрации пользователя. На вход принимается объект клиента.
+        # С помощью клиента получаем логин и пароль пользователя
+        # Если логин есть в базе, то регистрация прекращается
+        # Если логина нет в базе данных, то создаем запись с пустым случайным числом клиента и возвращаем креды сервера.
         usr_login, usr_pass = client.get_credits()
         logger.info(f"Starting user {usr_login} registration")
         if usr_login in self._user_db:
@@ -35,12 +43,20 @@ class ModifiedCHAPServer:
         return self.get_credits()
 
     def get_credits(self) -> (str, str):
+        # функция передачи кред сервера
         return self._login, self._pass
 
     def set_client_num(self, client_num) -> None:
+        # функция установки случайного числа полученного от клиента
         self._client_num = client_num
 
     def verify_user(self, client: "ModifiedCHAPClient", usr_digest) -> (bytes, None):
+        # функция авторизации пользователя
+        # получаем креды пользователя
+        # если от пользователя было получено случайное число, то формируется дайджест из случайного числа,
+        # сгенерированного сервером и паролем пользователя. Дайджест проверяется с присланным пользователем,
+        # если дайджест пользователя проходит проверку, то формируется дайджест с паролем сервера и присланным
+        # пользователем случайным числом. Дайджест возвращается пользователю, случайные числа на сервере обнуляются.
         usr_login, usr_pass = client.get_credits()
         if self._client_num:
             digest = streebog_hash(self._user_db[usr_login][0], self._user_db[usr_login][1])
@@ -56,6 +72,10 @@ class ModifiedCHAPServer:
             return None
 
     def get_random_number(self, client: "ModifiedCHAPClient") -> None:
+        # Функция генерации случайного числа. На вход принимается объект клиента.
+        # Если логин пользователя не находится в базе данных, то нет смысла генерировать случайное число.
+        # Если пользователь есть в базе данных, проверяется наличие случайного числа, отнесенного к этому пользователю.
+        # Если числа нет, то оно формируется, заносится в базу сервера и передается пользователю.
         usr_login, usr_pass = client.get_credits()
         if usr_login in self._user_db:
             if self._user_db[usr_login][1] is None:
@@ -69,11 +89,14 @@ class ModifiedCHAPServer:
             logger.info(f"No user named {usr_login}")
 
     def reset_num(self, usr_login: str) -> None:
+        # функция обнуления случайных чисел
         self._client_num = None
         self._user_db[usr_login][1] = None
 
 
 class ModifiedCHAPClient:
+    # Класс выступает в роли клиента.
+    # Иницилизируются база серверов, логин и пароль пользователя, случайное число, полученное от сервера.
     def __init__(self, usr_login: str, usr_pass: str):
         self._servers_db = {}  # server login&pass store. {login: [pass, server_num]}
         self._usr_login = usr_login
@@ -81,6 +104,9 @@ class ModifiedCHAPClient:
         self._server_num = None
 
     def register_user(self, server: ModifiedCHAPServer):
+        # Функция регистрации пользователя.
+        # Получает логин и пароль от сервера, передает свои данные серверу.
+        # Если сервера нет в бд, то записывает его креды в бд, случайное число выставляет в None
         serv_login, serv_pass = server.register_user(self)
         if serv_login in self._servers_db:
             logger.info(f"Server's credits already in database")
@@ -88,6 +114,11 @@ class ModifiedCHAPClient:
         self._servers_db[serv_login] = [serv_pass.encode(), None]
 
     def logging(self, server: ModifiedCHAPServer):
+        # Функция авторизации пользователя
+        # Получает креды сервера. Если случайное число от сервера не установлено, то авторизация провалена.
+        # Формируется дайджест из случайного числа сервера и пароля пользователя. Отправляеся серверу на проверку.
+        # Если сервер вернул другой дайджест, значит проверка прошла успешно и пользователю осталось подтвердить
+        # дайджест, полученный от сервера. Если дайджест подтверждается, то авторизация успешна.
         srv_login, srv_pass = server.get_credits()
         if self._server_num is not None:
             srv_digest = streebog_hash(self._usr_pass.encode(), self._server_num)
@@ -110,6 +141,10 @@ class ModifiedCHAPClient:
             logger.info(f"User {self._usr_login} auth with: FAIL")
 
     def get_random_number(self, server: ModifiedCHAPServer):
+        # Функция генерации случайного числа. На вход принимается объект сервера.
+        # Если логин сервера не находится в базе данных, то нет смысла генерировать случайное число.
+        # Если сервер есть в базе данных, проверяется наличие случайного числа, отнесенного к этому серверу.
+        # Если числа нет, то оно формируется, заносится в базу пользователя и передается серверу.
         srv_login, srv_pass = server.get_credits()
         if srv_login in self._servers_db:
             if self._servers_db[srv_login][1] is None:
@@ -123,13 +158,16 @@ class ModifiedCHAPClient:
             logger.info(f"No server named {srv_login}")
 
     def set_server_num(self, server_num) -> None:
+        # установка случайного числа
         self._server_num = server_num
 
     def reset_num(self, srv_login: str) -> None:
+        # обнуление случайного числа
         self._server_num = None
         self._servers_db[srv_login][1] = None
 
     def get_credits(self) -> (str, str):
+        # получение кред пользователя
         return self._usr_login, self._usr_pass
 
 
