@@ -28,13 +28,18 @@ def encrypt_kuznechik(key: bytes, plain_text: bytes) -> bytes:
     # шифруем Кузнечиком с PKCS7
     plain_text_with_pad = plain_text + create_padding(len(plain_text) % BLOCK_LENGTH)
     kzn = GOST3412Kuznechik(key)
-    return kzn.encrypt(plain_text_with_pad)
+    cipher_text = b''
+    for i in range(0, len(plain_text_with_pad), 16):
+        cipher_text += kzn.encrypt(plain_text_with_pad[i:i + 16])
+    return cipher_text
 
 
 def decrypt_kuznechik(key: bytes, cipher_text: bytes) -> bytes:
     # расшифровываем Кузнечиком с PKCS7
     kzn = GOST3412Kuznechik(key)
-    plain_text_with_pad = kzn.decrypt(cipher_text)
+    plain_text_with_pad = b''
+    for i in range(0, len(cipher_text), 16):
+        plain_text_with_pad += kzn.decrypt(cipher_text[i:i + 16])
     return remove_padding(plain_text_with_pad)
 
 
@@ -51,13 +56,13 @@ class NSPVerificationCenter:
         # если какой-то из переданных id пользователей не находится в бд - кидаем ошибку
         for usr_id in args:
             if usr_id not in self._db:
-                raise NSPException(f"User {usr_id} not in database")
+                logger.error(f"User {usr_id} not in database")
 
     def register_usr(self, usr: "NSPClient") -> None:
         # регистрируем пользователя
         # если пользователь уже есть в бд - кидаем ошибку
         if usr.get_id() in self._db:
-            raise NSPException(f"User {usr.get_id()} already exists")
+            logger.error(f"User {usr.get_id()} already exists")
         self._db[usr.get_id()] = usr.get_key()
 
     def verify_communication(self, companion_1_id: uuid.UUID, companion_2_id: uuid.UUID, nonce_1: bytes) -> bytes:
@@ -69,13 +74,14 @@ class NSPVerificationCenter:
         plain_text = nonce_1 + companion_2_id.bytes + session_key + encrypt_kuznechik(key=self._db[companion_2_id],
                                                                                       plain_text=session_key +
                                                                                       companion_1_id.bytes)
-        return encrypt_kuznechik(key=self._db[companion_1_id],
-                                 plain_text=plain_text)
+        m1 = encrypt_kuznechik(key=self._db[companion_1_id],
+                               plain_text=plain_text)
+        return m1
 
 
 class NSPClient:
-    def __init__(self):
-        self._id = uuid.uuid4()
+    def __init__(self, usr_id=None):
+        self._id = uuid.uuid4() if usr_id is None else usr_id
         self._key = get_random_bytes(2 * BLOCK_LENGTH)
         self._nonce = None
         self._session_key = None
@@ -96,33 +102,43 @@ class NSPClient:
         # устанавливаем сессионный ключ
         self._session_key = session_key
 
-    def _communicate_initiate(self, companion: "NSPClient", vcenter: NSPVerificationCenter) -> bytes:
+    def register(self, vcenter: NSPVerificationCenter):
+        vcenter.register_usr(self)
+
+    def communicate_initiate(self, companion: "NSPClient", vcenter: NSPVerificationCenter) -> bytes:
         # инициация общения с другим пользователем
         # генерируем случайное число, передаем удостоверяющему центру информацию о собственном id, id собеседника
         # и сгенерированное случайное одноразовое число
         # получаем от УЦ конструкцию, вида: 𝐸at(𝑁,𝐵,𝐾,𝐸bt(𝐾,𝐴))
-        logger.info(f"Initiate communication between {self.get_id()} and {companion.get_id()}")
         self._set_nonce()
+        companion._set_nonce()
+        logger.info(f"Initiate communication between {self.get_id()} and {companion.get_id()}")
         return vcenter.verify_communication(self.get_id(), companion.get_id(), self._nonce)
 
-    def _m0_transfer_to_companion(self, companion: "NSPClient", m1: bytes) -> None:
+    def m0_transfer_to_companion(self, companion: "NSPClient", m1: bytes) -> None:
         # отправляем m0 собеседнику,
         # собеседник устанавливает себе сеансовый ключ
         plain_text = decrypt_kuznechik(key=self._key, cipher_text=m1)
-        concat = plain_text[len(self._nonce) + len(companion.get_id().bytes)]
+        concat = plain_text[len(self._nonce) + len(companion.get_id().bytes):]
         self._set_session_key(concat[:2 * BLOCK_LENGTH])
         m0 = concat[2 * BLOCK_LENGTH:]
         companion.get_session_key(m0)
 
     def get_session_key(self, m0: bytes) -> None:
         # получение сессионного ключа из m0
-        plain_text = decrypt_kuznechik(key=self._key, cipher_text=m0)
-        self._set_session_key(plain_text[:2 * BLOCK_LENGTH])
+        try:
+            plain_text = decrypt_kuznechik(key=self._key, cipher_text=m0)
+            self._set_session_key(plain_text[:2 * BLOCK_LENGTH])
+        except (IndexError, ValueError):
+            logger.error("Key didn't establish")
 
     def transfer_encrypt_nonce_to_companion(self, companion: "NSPClient"):
         # передаем собеседнику зашифрованное случайное одноразовое число
-        encrypt_nonce = encrypt_kuznechik(key=self._session_key, plain_text=self._nonce)
-        companion.transfer_modify_nonce(self, encrypt_nonce)
+        try:
+            encrypt_nonce = encrypt_kuznechik(key=self._session_key, plain_text=self._nonce)
+            companion.transfer_modify_nonce(self, encrypt_nonce)
+        except (IndexError, ValueError):
+            logger.error("Key didn't establish")
 
     def transfer_modify_nonce(self, companion: "NSPClient", encrypt_companion_nonce: bytes):
         # модифицируем полученное от собеседника одноразовое случайное число
@@ -136,20 +152,31 @@ class NSPClient:
         modify_nonce = decrease_nonce(self._nonce)
         decrypt_responce = decrypt_kuznechik(key=self._session_key, cipher_text=encrypt_modify_nonce)
         if modify_nonce == decrypt_responce:
-            logger.info(f"Established key: {self._nonce}")
+            logger.info(f"Established key: {self._session_key}")
         else:
-            logger.info(f"Key didn't establish")
+            logger.error(f"Key didn't establish")
 
-
-class NSPException(Exception):
-    pass
+    def exchange_keys(self, companion: "NSPClient", vcenter: NSPVerificationCenter):
+        # обмениваемся ключами
+        m1 = self.communicate_initiate(companion, vcenter)
+        self.m0_transfer_to_companion(companion, m1)
+        companion.transfer_encrypt_nonce_to_companion(self)
 
 
 if __name__ == "__main__":
     try:
-        pass
-    except NSPException as err:
-        logger.error(err)
+        Alice = NSPClient()
+        Bob = NSPClient()
+        VC = NSPVerificationCenter()
+        Alice.register(VC)
+        Bob.register(VC)
+        Eva = NSPClient(Bob.get_id())
+        Alice.exchange_keys(Bob, VC)
+        Alice.exchange_keys(Bob, VC)
+        Eva.exchange_keys(Alice, VC)
+        Alice.exchange_keys(Bob, VC)
+        Alice.exchange_keys(Eva, VC)
+        Alice.exchange_keys(Bob, VC)
     except Exception as exp:
         logger.exception(exp)
         sys.exit(EXIT_CODE)
