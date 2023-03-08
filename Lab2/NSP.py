@@ -1,8 +1,8 @@
 import sys
 import uuid
-from pygost.gost3412 import GOST3412Kuznechik
 from Crypto.Random import get_random_bytes
 from Crypto.Util import number
+from Kuznechik import encrypt_kuznechik, decrypt_kuznechik
 import logging
 
 BLOCK_LENGTH = 16
@@ -10,37 +10,6 @@ EXIT_CODE = 1
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("Needham – Schroeder Protocol")
-
-
-def create_padding(padding_len: int) -> bytes:
-    # создаем паддинг PKCS7
-    return (BLOCK_LENGTH - padding_len).to_bytes(1, byteorder="big") * (BLOCK_LENGTH - padding_len)
-
-
-def remove_padding(data: bytes) -> bytes:
-    # удаляем паддинг PKCS7
-    padding_value = data[len(data) - 1]
-    plain_block = data[:len(data) - padding_value]
-    return plain_block
-
-
-def encrypt_kuznechik(key: bytes, plain_text: bytes) -> bytes:
-    # шифруем Кузнечиком с PKCS7
-    plain_text_with_pad = plain_text + create_padding(len(plain_text) % BLOCK_LENGTH)
-    kzn = GOST3412Kuznechik(key)
-    cipher_text = b''
-    for i in range(0, len(plain_text_with_pad), 16):
-        cipher_text += kzn.encrypt(plain_text_with_pad[i:i + 16])
-    return cipher_text
-
-
-def decrypt_kuznechik(key: bytes, cipher_text: bytes) -> bytes:
-    # расшифровываем Кузнечиком с PKCS7
-    kzn = GOST3412Kuznechik(key)
-    plain_text_with_pad = b''
-    for i in range(0, len(cipher_text), 16):
-        plain_text_with_pad += kzn.decrypt(cipher_text[i:i + 16])
-    return remove_padding(plain_text_with_pad)
 
 
 def decrease_nonce(nonce: bytes) -> bytes:
@@ -131,6 +100,7 @@ class NSPClient:
             self._set_session_key(plain_text[:2 * BLOCK_LENGTH])
         except (IndexError, ValueError):
             logger.error("Key didn't establish")
+            return None
 
     def transfer_encrypt_nonce_to_companion(self, companion: "NSPClient"):
         # передаем собеседнику зашифрованное случайное одноразовое число
@@ -139,6 +109,7 @@ class NSPClient:
             companion.transfer_modify_nonce(self, encrypt_nonce)
         except (IndexError, ValueError):
             logger.error("Key didn't establish")
+            return None
 
     def transfer_modify_nonce(self, companion: "NSPClient", encrypt_companion_nonce: bytes):
         # модифицируем полученное от собеседника одноразовое случайное число
@@ -155,6 +126,7 @@ class NSPClient:
             logger.info(f"Established key: {self._session_key}")
         else:
             logger.error(f"Key didn't establish")
+            return None
 
     def exchange_keys(self, companion: "NSPClient", vcenter: NSPVerificationCenter):
         # обмениваемся ключами

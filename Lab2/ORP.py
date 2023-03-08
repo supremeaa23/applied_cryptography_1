@@ -1,9 +1,8 @@
-import sys
 import uuid
-from pygost.gost3412 import GOST3412Kuznechik
 from Crypto.Random import get_random_bytes
-from Crypto.Util import number
 import logging
+from typing import Union
+from Kuznechik import encrypt_kuznechik, decrypt_kuznechik
 
 BLOCK_LENGTH = 16
 EXIT_CODE = 1
@@ -11,37 +10,6 @@ LEN_ID_IN_BYTES = 16
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("Otway-Rees Protocol")
-
-
-def create_padding(padding_len: int) -> bytes:
-    # создаем паддинг PKCS7
-    return (BLOCK_LENGTH - padding_len).to_bytes(1, byteorder="big") * (BLOCK_LENGTH - padding_len)
-
-
-def remove_padding(data: bytes) -> bytes:
-    # удаляем паддинг PKCS7
-    padding_value = data[len(data) - 1]
-    plain_block = data[:len(data) - padding_value]
-    return plain_block
-
-
-def encrypt_kuznechik(key: bytes, plain_text: bytes) -> bytes:
-    # шифруем Кузнечиком с PKCS7
-    plain_text_with_pad = plain_text + create_padding(len(plain_text) % BLOCK_LENGTH)
-    kzn = GOST3412Kuznechik(key)
-    cipher_text = b''
-    for i in range(0, len(plain_text_with_pad), 16):
-        cipher_text += kzn.encrypt(plain_text_with_pad[i:i + 16])
-    return cipher_text
-
-
-def decrypt_kuznechik(key: bytes, cipher_text: bytes) -> bytes:
-    # расшифровываем Кузнечиком с PKCS7
-    kzn = GOST3412Kuznechik(key)
-    plain_text_with_pad = b''
-    for i in range(0, len(cipher_text), 16):
-        plain_text_with_pad += kzn.decrypt(cipher_text[i:i + 16])
-    return remove_padding(plain_text_with_pad)
 
 
 class ORVerificationCenter:
@@ -57,7 +25,9 @@ class ORVerificationCenter:
         self._db[usr.get_id()] = usr.get_key()
         logger.info(f"User {usr.get_id()} created")
 
-    def accept_m1_and_send_m2(self, m1: bytes) -> bytes:
+    def accept_m1_and_send_m2(self, m1: bytes) -> Union[bytes, None]:
+        # центр доверия расшифровывает поля M1 и проверяет соответствие друг другу значений I, A, B.
+        # при прохождении проверки генерирует session key и формирует сообщение М2, которое отправляет второму участнику
         counter = m1[:2 * BLOCK_LENGTH]
         member_1_id = m1[2 * BLOCK_LENGTH:3 * BLOCK_LENGTH]
         member_2_id = m1[3 * BLOCK_LENGTH:4 * BLOCK_LENGTH]
@@ -79,8 +49,10 @@ class ORVerificationCenter:
             return m2
         else:
             logger.error("Session key not generated")
+            return None
 
     def check_params(self, counter: bytes, member_id_1: bytes, member_id_2: bytes, member_cipher: bytes):
+        # проверка значений I, A, B
         try:
             key = self._db[uuid.UUID(bytes=member_id_1)]
         except KeyError:
@@ -129,6 +101,7 @@ class ORClient:
         vcenter.register_usr(self)
 
     def send_m0_to_companion(self, companion: "ORClient", vcenter: ORVerificationCenter):
+        # первый участник формирует сообщение для второго, отправляет второму
         m0 = self._counter + self._id.bytes + companion.get_id().bytes + encrypt_kuznechik(key=self._key,
                                                                                            plain_text=self._nonce +
                                                                                            self._counter +
@@ -137,12 +110,16 @@ class ORClient:
         companion.send_m1_to_vc_and_get_m2(self, vcenter, m0)
 
     def send_m1_to_vc_and_get_m2(self, companion: "ORClient", vcenter: "ORVerificationCenter", m0: bytes):
+        # Второй участник получает m0, формирует m1, отправляет центру доверия, получает от него М2, из М2 получает
+        # сгенерированный сессионный ключ, формирует сообщение m3, отправляет первому
         m1 = m0 + encrypt_kuznechik(key=self._key,
                                     plain_text=self._nonce +
                                     self._counter +
                                     self._id.bytes +
                                     companion.get_id().bytes)
         m2 = vcenter.accept_m1_and_send_m2(m1)
+        if not m2:
+            return None
         cipher_text = m2[len(m2) // 2:]
         plain_text = decrypt_kuznechik(key=self._key, cipher_text=cipher_text)
         session_key = plain_text[2 * BLOCK_LENGTH:]
@@ -151,6 +128,7 @@ class ORClient:
         companion.get_m3(self, companion_cipher_text)
 
     def get_m3(self, companion: "ORClient", m3: bytes):
+        # первый участник получает m3, достает из него ключ
         plain_text = decrypt_kuznechik(key=self._key, cipher_text=m3)
         session_key = plain_text[2 * BLOCK_LENGTH:]
         self.set_session_key(session_key)
@@ -171,3 +149,4 @@ if __name__ == "__main__":
     Eva = ORClient(counter, usr_id=Bob.get_id())
     Eva.register(VC)
     Alice.send_m0_to_companion(Eva, VC)
+    Eva.send_m0_to_companion(Alice, VC)
