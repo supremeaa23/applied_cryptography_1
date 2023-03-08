@@ -172,4 +172,5 @@ if __name__ == "__main__":
     bob_id = uuid.UUID(bytes=Bob.get_usr_id())
     Eve = PKDClient(bob_id)
     distribute_keys(Alice, Eve, VC)
+    distribute_keys(Eve, Alice, VC)
     distribute_keys(Alice, Bob, VC)

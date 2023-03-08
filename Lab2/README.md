@@ -28,4 +28,5 @@
 * [INFO] Key establish
 * [INFO] Key establish
 * [ERROR] Key didn't establish
+* [ERROR] Key didn't establish
 * [INFO] Key establish
