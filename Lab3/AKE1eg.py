@@ -13,6 +13,7 @@ logger = logging.getLogger("AKE1-eg Protocol")
 RANDOM_LENGTH = 16
 
 def distribute_keys(user: "AKE1egUser", server: "AKE1egServer"):
+    # обмен ключами
     user.set_cert()
     server.set_cert()
     user.set_nonce()
@@ -21,7 +22,20 @@ def distribute_keys(user: "AKE1egUser", server: "AKE1egServer"):
     user.get_msg(msg)
 
 
+def distribute_keys_with_mallory(user: "AKE1egUser", server: "AKE1egServer", mallory: "AKE1egUser"):
+    # обмен ключами с противником, противник получает сообщение от стороны Q, пытается получить сессионный ключ
+    user.set_cert()
+    server.set_cert()
+    mallory.set_cert()
+    user.set_nonce()
+    mallory.set_nonce()
+    msg = user.send_msg()
+    msg = server.response_msg(msg)
+    user.get_msg(msg)
+    mallory.get_msg(msg)
+
 class AKE1egUser:
+    # Класс стороны P
     def __init__(self, p, g, usr_id: uuid.UUID = None,):
         self._db = {} # {id: public_key(g^b)}
         self._usr_id = usr_id if usr_id else uuid.uuid4()
@@ -34,21 +48,26 @@ class AKE1egUser:
         self._public_key = None
 
     def set_cert(self):
+        # установка сертификата
         self.set_power()
         self._public_key = gmpy2.to_binary(gmpy2.powmod(self._g, self._power, self._p))
         self._cert = [self._usr_id.bytes, self._public_key]
 
     def set_power(self):
+        # генерируем степень
         self._power = randint(1, self._p - 2)
 
     def set_nonce(self):
+        # генерируем r
         self._nonce = get_random_bytes(RANDOM_LENGTH)
         logger.info(f"User {self._usr_id} generated nonce: {self._nonce.hex()}")
 
     def send_msg(self):
+        # отдаем сообщение Q
         return [self._nonce, self._cert]
 
     def get_msg(self, msg):
+        # получаем сообщение от Q, проверяем подпись, устанавливаем ключ
         cp_public_key = msg[0]
         signature = msg[1]
         cp_cert = msg[2]
@@ -66,6 +85,7 @@ class AKE1egUser:
 
 
 class AKE1egServer:
+    # класс стороны Q
     def __init__(self, p, g, usr_id: uuid.UUID = None,):
         self._db = {} # {id: [r, public_key(g^a)]}
         self._usr_id = usr_id if usr_id else uuid.uuid4()
@@ -77,17 +97,23 @@ class AKE1egServer:
         self._public_key = None
 
     def set_power(self):
+        # генерируем степень
         self._power = randint(1, self._p - 2)
 
     def set_cert(self):
+        # устанавливаем сертификат
         self.set_power()
         self._public_key = gmpy2.to_binary(gmpy2.powmod(self._g, self._power, self._p))
         self._cert = [self._usr_id.bytes, None]
 
     def add_usr(self, msg):
+        # добавляем пользователя в бд
         self._db[msg[1][0]] = [msg[0], msg[1][1]]
 
     def response_msg(self, msg):
+        # отвечаем на сообщение пользователя
+        # генерируем подпись
+        # генерируем сессионный ключ
         self.add_usr(msg)
         signature = self.get_signature(msg[0] + self._public_key + msg[1][0])
         data = msg[1][1] + self._public_key + gmpy2.to_binary(gmpy2.powmod(gmpy2.from_binary(msg[1][1]), self._power, self._p)) + self._usr_id.bytes
@@ -96,6 +122,7 @@ class AKE1egServer:
         return [self._public_key, signature, self._cert]
 
     def get_signature(self, data):
+        # подпись
         public_key, prv = get_public_key()
         self._cert[1] = public_key
         signature = sign_data(data_for_signing=data, prv=prv)
@@ -108,3 +135,6 @@ if __name__ == "__main__":
     Alice = AKE1egUser(p=p, g=g)
     Bob = AKE1egServer(p=p, g=g)
     distribute_keys(Alice, Bob)
+    logger.info('-' * 90)
+    Mallory = AKE1egUser(p=p, g=g)
+    distribute_keys_with_mallory(Alice, Bob, Mallory)

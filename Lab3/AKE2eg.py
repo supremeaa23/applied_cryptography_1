@@ -10,9 +10,18 @@ logger = logging.getLogger("AKE1-eg Protocol")
 
 
 def distribute_keys(user: "AKE2egUser", server: "AKE2egServer"):
+    # обмен ключами
     msg = user.send_msg()
     msg = server.response_msg(msg)
     user.verify_and_configure_session_key(msg)
+
+def distribute_keys_with_mallory(user: "AKE2egUser", server: "AKE2egServer", mallory: "AKE2egUser"):
+    # обмен ключами с противником
+    # противник получает сообщение от Q, пытается установить сессионный ключ
+    msg = user.send_msg()
+    msg = server.response_msg(msg)
+    user.verify_and_configure_session_key(msg)
+    mallory.verify_and_configure_session_key(msg)
 
 
 class AKE2egUser:
@@ -34,6 +43,7 @@ class AKE2egUser:
         self._public_key = gmpy2.to_binary(gmpy2.powmod(self._g, self._power, self._p))
 
     def get_signature(self, data):
+        # подпись
         public_key, prv = get_public_key()
         self._sign_public_key = public_key
         self._cert = [self._usr_id.bytes, public_key]
@@ -42,14 +52,21 @@ class AKE2egUser:
         return signature
 
     def send_msg(self):
+        # отправляем сообщение стороне Q
         self.set_public_key()
         return [self._public_key, self.get_signature(self._public_key), self._cert]
 
     def verify_and_configure_session_key(self, msg):
+        # проверяем сообщение от Q, устанавливаем сессионный ключ
         cp_public_key = msg[0]
         signature = msg[1]
         cp_cert = msg[2]
-        dgst = get_dgst(self._public_key + cp_public_key + self._usr_id.bytes)
+        try:
+            dgst = get_dgst(self._public_key + cp_public_key + self._usr_id.bytes)
+        except TypeError:
+            logger.error("Not enough data for check signature")
+            logger.info(f"Key did not established")
+            return
         if verify_signature(pub=cp_cert[1], signature=signature, dgst=dgst):
             logger.info("SIGNATURE CONFIRMED")
         else:
@@ -61,6 +78,7 @@ class AKE2egUser:
 
 
 class AKE2egServer:
+    # сторона Q
     def __init__(self, p, g, usr_id: uuid.UUID = None):
         self._p = p
         self._g = g
@@ -79,6 +97,7 @@ class AKE2egServer:
         self._public_key = gmpy2.to_binary(gmpy2.powmod(self._g, self._power, self._p))
 
     def get_signature(self, data):
+        # подпись
         public_key, prv = get_public_key()
         self._sign_public_key = public_key
         self._cert = [self._usr_id.bytes, public_key]
@@ -87,6 +106,9 @@ class AKE2egServer:
         return signature
 
     def response_msg(self, msg):
+        # отвечаем на сообщение стороны Q
+        # генерируем подпись
+        # устанавливаем сессионный ключ
         cp_public_key = msg[0]
         cp_signature = msg[1]
         cp_cert = msg[2]
@@ -110,3 +132,6 @@ if __name__ == "__main__":
     Alice = AKE2egUser(p=p, g=g)
     Bob = AKE2egServer(p=p, g=g)
     distribute_keys(Alice, Bob)
+    logger.info("-" * 90)
+    Mallory = AKE2egUser(p=p, g=g)
+    distribute_keys_with_mallory(Alice, Bob, Mallory)

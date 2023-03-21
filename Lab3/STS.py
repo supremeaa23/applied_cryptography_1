@@ -13,14 +13,24 @@ DH_SIZE = 1024
 RANDOM_LENGTH = 16
 
 
-def distribute_keys(user: "AKE2egUser", server: "AKE2egServer"):
+def distribute_keys(user: "STSUser", server: "STSServer"):
+    # обмен ключами
     msg = user.send_msg()
     msg = server.response_msg(msg)
     msg = user.response_msg(msg)
     server.verify(msg)
 
+def distribute_keys_with_mallory(user: "STSUser", server: "STSServer", mallory: "STSUser"):
+    # обмен ключами с противником
+    # противник отвечает на сообщение сервера и пытается сконфигурировать сессионный ключ
+    msg = user.send_msg()
+    msg = server.response_msg(msg)
+    false_msg = mallory.response_msg(msg)
+    server.verify(false_msg)
 
-class AKE2egUser:
+
+class STSUser:
+    # cторона P
     def __init__(self, p, g, usr_id: uuid.UUID = None):
         self._p = p
         self._g = g
@@ -41,11 +51,13 @@ class AKE2egUser:
         self._power = randint(1, self._p - 2)
 
     def send_msg(self):
+        # отправляем открытый ключ Q
         self.set_power()
         self.set_public_key()
         return self._public_key
 
     def get_signature(self, data):
+        # подпись
         public_key, prv = get_public_key()
         self._sign_public_key = public_key
         self.set_cert()
@@ -54,10 +66,18 @@ class AKE2egUser:
         return signature
 
     def response_msg(self, msg):
+        # отвечаем на сообщение стороны Q
+        # генерируем сессионный ключ
+        # проверяем подпись
         cp_public_key = msg[0]
         cipher_text = msg[1]
         cp_id, cp_sign_public_key = msg[2][0], msg[2][1]
-        self._session_key = get_key((gmpy2.powmod(gmpy2.from_binary(cp_public_key), self._power, self._p)))
+        try:
+            self._session_key = get_key((gmpy2.powmod(gmpy2.from_binary(cp_public_key), self._power, self._p)))
+        except TypeError:
+            logger.error("Not enough data to configure session key")
+            logger.error("Session key did not established")
+            return
         signature = decrypt_kuznechik(key=self._session_key, cipher_text=cipher_text)
         dgst = get_dgst(self._public_key + cp_public_key)
         if verify_signature(pub=cp_sign_public_key, signature=signature, dgst=dgst):
@@ -73,7 +93,8 @@ class AKE2egUser:
         return [cipher_text, self._cert]
 
 
-class AKE2egServer:
+class STSServer:
+    # сторона Q
     def __init__(self, p, g, usr_id: uuid.UUID = None):
         self._p = p
         self._g = g
@@ -95,6 +116,8 @@ class AKE2egServer:
         self._public_key = gmpy2.to_binary(gmpy2.powmod(self._g, self._power, self._p))
 
     def response_msg(self, msg):
+        # отвечаем на сообщение Р
+        # генерируем сессионный ключ
         self.set_power()
         self.set_public_key()
         self._companion_public_key = msg
@@ -106,6 +129,7 @@ class AKE2egServer:
         return [self._public_key, cipher_text, self._cert]
 
     def get_signature(self, data):
+        # подпись
         public_key, prv = get_public_key()
         self._sign_public_key = public_key
         self.set_cert()
@@ -114,7 +138,13 @@ class AKE2egServer:
         return signature
 
     def verify(self, msg):
-        cipher_text = msg[0]
+        # проверяем собеседника
+        try:
+            cipher_text = msg[0]
+        except TypeError:
+            logger.error("SIGNATURE REJECTED")
+            logger.info(f"FALSE COMPANION")
+            return
         cp_id, cp_sign_public_key = msg[1][0], msg[1][1]
         signature = decrypt_kuznechik(key=self._session_key, cipher_text=cipher_text)
         dgst = get_dgst(self._companion_public_key + self._public_key)
@@ -128,6 +158,9 @@ class AKE2egServer:
 
 if __name__ == "__main__":
     p, g = initialize_params()
-    Alice = AKE2egUser(p=p, g=g)
-    Bob = AKE2egServer(p=p, g=g)
+    Alice = STSUser(p=p, g=g)
+    Bob = STSServer(p=p, g=g)
     distribute_keys(Alice, Bob)
+    logger.info("-" * 90)
+    Mallory = STSUser(p=p, g=g)
+    distribute_keys_with_mallory(Alice, Bob, Mallory)
