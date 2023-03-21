@@ -123,7 +123,7 @@ class NSPClient:
         modify_nonce = decrease_nonce(self._nonce)
         decrypt_responce = decrypt_kuznechik(key=self._session_key, cipher_text=encrypt_modify_nonce)
         if modify_nonce == decrypt_responce:
-            logger.info(f"Established key: {self._session_key}")
+            logger.info(f"Established key: {self._session_key.hex()}")
         else:
             logger.error(f"Key didn't establish")
             return None
