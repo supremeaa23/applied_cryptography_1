@@ -4,6 +4,7 @@ from math import gcd
 
 
 def get_params_for_pedersen(q, LENGTH_P):
+    # генерация параметров для схемы Педерсена
     def get_group_element(p, q):
         mutual_prime = getrandbits(LENGTH_P)
         while gcd(mutual_prime, p) != 1:
@@ -23,6 +24,7 @@ def get_params_for_pedersen(q, LENGTH_P):
 
 
 def get_params_for_feldman(q, LENGTH_P):
+    # генерация параметров для схемы Фельдмана
     def get_group_element(p, q):
         mutual_prime = getrandbits(LENGTH_P)
         while gcd(mutual_prime, p) != 1:

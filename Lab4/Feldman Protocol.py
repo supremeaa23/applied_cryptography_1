@@ -16,6 +16,7 @@ P, G, = get_params_for_feldman(Q, LENGTH_P)
 
 
 def create_users(N):
+    # Создаем пользователей
     users = list()
     for _ in range(N):
         users.append(FeldmanUser(T, N))
@@ -23,12 +24,14 @@ def create_users(N):
 
 
 def set_user_points(users, dealer) -> None:
+    # Иницилизация точек среди пользователей
     for index, user in enumerate(users):
         point = dealer.get_point(index)
         user.set_point(point)
 
 
 def set_params(dealer, users) -> None:
+    # Задаем коэффициенты и значения, по факту выбираем многочлен
     dealer.set_coefficients()
     dealer.set_values()
     dealer.set_verify_values()
@@ -41,11 +44,14 @@ def set_params(dealer, users) -> None:
 
 
 def custom_validation(users) -> None:
+    # Проверяем полученные части ключа
     for user in users:
         user.check()
 
 
 def restore_keys(users, dealer, T):
+    # восстанавливаем ключ двумя методами
+    # сообщаем об успехе/провале
     def print_results(resp):
         if resp:
             logger.info("Key assembly completed successfully")
@@ -66,6 +72,7 @@ def restore_keys(users, dealer, T):
 
 
 def key_sharing():
+    # разделям секрет и собираем
     dealer = FeldmanDealer(T, N)
     users = create_users(N)
     dealer.set_points()
@@ -78,10 +85,12 @@ def key_sharing():
 
 
 def multiply_list_elements(data):
+    # перемножаем элементы в списке
     return reduce(lambda x, y: x * y, data)
 
 
 class FeldmanDealer:
+    # класс дилера
     def __init__(self, t, n):
         self._t = t
         self._n = n
@@ -92,6 +101,7 @@ class FeldmanDealer:
         self._verify_values = list()
 
     def set_points(self):
+        # задаем точки
         for point in range(1, self._n + 1):
             self._points.append(point)
 
@@ -109,9 +119,11 @@ class FeldmanDealer:
         return self._key
 
     def get_value(self, index):
+
         return self._values[index]
 
     def set_coefficients(self):
+        # генерируем коэффициенты
         self.set_key()
         self._coefficients.append(self._key)
         for _ in range(self._t - 1):
@@ -121,6 +133,7 @@ class FeldmanDealer:
         return self._coefficients
 
     def set_values(self):
+        # вычисляем значения по полученным коэффициентам
         for point in self._points:
             prev = list()
             for power, coefficient in enumerate(self._coefficients):
@@ -128,6 +141,7 @@ class FeldmanDealer:
             self._values.append(sum(prev) % Q)
 
     def set_verify_values(self):
+        # задаем проверочные значения
         for coefficient in self._coefficients:
             self._verify_values.append(G ** coefficient)
 
@@ -136,6 +150,7 @@ class FeldmanDealer:
 
 
 class FeldmanUser:
+    # класс пользователя
     def __init__(self, t, n):
         self._t = t
         self._n = n
@@ -156,6 +171,7 @@ class FeldmanUser:
         return self._value
 
     def set_verify_values(self, verify_values):
+        # получаем проверочные значения
         self._verify_values = verify_values
 
     def get_verify_values(self):
@@ -174,6 +190,7 @@ class FeldmanUser:
             logger.info(f"Verification failed")
 
     def get_eq(self):
+        # генерируем соответствующее уравнение
         eq = [1]
         for power in range(1, self._t):
             eq.append(self._point ** power)

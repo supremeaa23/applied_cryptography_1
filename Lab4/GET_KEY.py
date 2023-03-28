@@ -10,6 +10,7 @@ logger = logging.getLogger("GET KEY")
 
 
 def get_key_by_lagrange_interpolation(users, P):
+    # Восстановление секрета путём интерполяции Лагранжа
     def multiply_list_elements(data):
         return reduce(lambda x, y: x * y, data)
     list_for_user_1 = list()
@@ -23,6 +24,7 @@ def get_key_by_lagrange_interpolation(users, P):
 
 
 def get_key_by_eq(users, P):
+    # Восстановление секрета путём решения СЛАУ
     try:
         equations = list()
         for user in users:

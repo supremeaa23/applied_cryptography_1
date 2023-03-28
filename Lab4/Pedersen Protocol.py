@@ -17,6 +17,7 @@ P, G, H = get_params_for_pedersen(Q, LENGTH_P)
 
 
 def create_users(N):
+    # Создаем пользователей
     users = list()
     for _ in range(N):
         users.append(PedersenUser(T, N))
@@ -24,12 +25,14 @@ def create_users(N):
 
 
 def set_user_points(users, dealer) -> None:
+    # Иницилизация точек среди пользователей
     for index, user in enumerate(users):
         point = dealer.get_point(index)
         user.set_point(point)
 
 
 def set_params(dealer, users) -> None:
+    # Задаем коэффициенты и значения, по факту выбираем многочлен
     dealer.set_delta_coefficients()
     dealer.set_values()
     dealer.set_gamma_coefficients()
@@ -44,11 +47,14 @@ def set_params(dealer, users) -> None:
 
 
 def custom_validation(users) -> None:
+    # Проверяем полученные части ключа
     for user in users:
         user.check()
 
 
 def restore_keys(users, dealer, T):
+    # восстанавливаем ключ двумя методами
+    # сообщаем об успехе/провале
     def print_results(resp):
         if resp:
             logger.info("Key assembly completed successfully")
@@ -69,6 +75,7 @@ def restore_keys(users, dealer, T):
 
 
 def key_sharing():
+    # разделям секрет и собираем
     dealer = PedersenDealer(T, N)
     users = create_users(N)
     dealer.set_points()
@@ -81,10 +88,12 @@ def key_sharing():
 
 
 def multiply_list_elements(data):
+    # перемножаем элементы в списке
     return reduce(lambda x, y: x * y, data)
 
 
 class PedersenDealer:
+    # класс дилера
     def __init__(self, t, n):
         self._t = t
         self._n = n
@@ -96,6 +105,7 @@ class PedersenDealer:
         self._key = None
 
     def set_points(self) -> None:
+        # задаем точки
         for point in range(1, self._n + 1):
             self._points.append(point)
 
@@ -116,6 +126,7 @@ class PedersenDealer:
         return self._values[index]
 
     def set_delta_coefficients(self) -> None:
+        # генерируем коэффициенты
         self.set_key()
         self._delta_coefficients.append(self._key)
         for _ in range(self._t - 1):
@@ -125,6 +136,7 @@ class PedersenDealer:
         return self._delta_coefficients
 
     def set_values(self) -> None:
+        # получаем значения от коэффициентов
         for point in self._points:
             prev = list()
             for power, coefficient in enumerate(self._delta_coefficients):
@@ -132,6 +144,7 @@ class PedersenDealer:
             self._values.append(sum(prev) % Q)
 
     def set_gamma_coefficients(self) -> None:
+        # генерируем коэффициенты
         for _ in range(self._t):
             self._gamma_coefficients.append(self.get_random_element(Q))
 
@@ -139,6 +152,7 @@ class PedersenDealer:
         return self._gamma_coefficients
 
     def set_verify_values(self) -> None:
+        # получаем проверочные значения от гамма и дельта коэффициентов
         for delta, gamma in zip(self._delta_coefficients, self._gamma_coefficients):
             self._verify_values.append((G ** delta) * (H ** gamma))
 
@@ -146,6 +160,7 @@ class PedersenDealer:
         return self._verify_values
 
     def get_w(self, val):
+        # вычисляем параметры для проверки частей ключа
         list_for_sum = list()
         for power, g in enumerate(self._gamma_coefficients):
             list_for_sum.append(g * pow(val, power))
@@ -153,6 +168,7 @@ class PedersenDealer:
 
 
 class PedersenUser:
+    # класс пользователя
     def __init__(self, t, n):
         self._t = t
         self._n = n
@@ -186,6 +202,7 @@ class PedersenUser:
         return self._w
 
     def check(self) -> None:
+        # Проверка полученных частей ключа
         expected_value = (G ** self.get_value()) * (H ** self.get_w())
         list_for_check = list()
         for power, val in enumerate(self.get_verify_values()):
@@ -197,6 +214,7 @@ class PedersenUser:
             logger.info('VERIFICATION SUCCESSFUL')
 
     def get_eq(self):
+        # генерируем соответствующее уравнение
         eq = [1]
         for power in range(1, self._t):
             eq.append(self._point ** power)

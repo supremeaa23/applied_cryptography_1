@@ -12,6 +12,7 @@ N = 12
 
 
 def create_users(N):
+    # Создаем пользователей
     users = list()
     for _ in range(N):
         users.append(ShamirUser(T, N))
@@ -19,12 +20,14 @@ def create_users(N):
 
 
 def set_user_points(users, dealer) -> None:
+    # Иницилизация точек среди пользователей
     for index, user in enumerate(users):
         point = dealer.get_point(index)
         user.set_point(point)
 
 
 def set_params(dealer, users) -> None:
+    # Задаем коэффициенты и значения, по факту выбираем многочлен
     dealer.set_coefficients()
     dealer.set_values()
     for i, user in enumerate(users):
@@ -33,6 +36,8 @@ def set_params(dealer, users) -> None:
 
 
 def restore_keys(users, dealer, T):
+    # восстанавливаем ключ двумя методами
+    # сообщаем об успехе/провале
     def print_results(resp):
         if resp:
             logger.info("Key assembly completed successfully")
@@ -53,6 +58,7 @@ def restore_keys(users, dealer, T):
 
 
 def key_sharing():
+    # разделям секрет и собираем
     dealer = ShamirDealer(T, N)
     users = create_users(N)
     dealer.set_points()
@@ -64,7 +70,7 @@ def key_sharing():
 
 
 class ShamirDealer:
-
+    # класс дилера
     P = getStrongPrime(BIT_SIZE)
 
     def __init__(self, t, n):
@@ -76,6 +82,7 @@ class ShamirDealer:
         self._key = None
 
     def set_points(self):
+        # выбираем точки
         for point in range(1, self._n + 1):
             self._points.append(point)
 
@@ -98,12 +105,14 @@ class ShamirDealer:
         return self._values[index]
 
     def set_coefficients(self):
+        # генерируем коэффициенты
         self.set_key()
         self._coefficients.append(self._key)
         for _ in range(self._t - 1):
             self._coefficients.append(self.get_random_element())
 
     def set_values(self):
+        # вычисляем значения
         for point in self._points:
             prev = list()
             for power, coefficient in enumerate(self._coefficients):
@@ -112,6 +121,7 @@ class ShamirDealer:
 
 
 class ShamirUser:
+    # класс пользователя
     def __init__(self, t, n):
         self._n = n
         self._t = t
@@ -119,9 +129,11 @@ class ShamirUser:
         self._value = None
 
     def set_point(self, point):
+        # получаем точку
         self._point = point
 
     def set_value(self, value):
+        # получаем значения на точке
         self._value = value
 
     def get_value(self):
@@ -131,6 +143,7 @@ class ShamirUser:
         return self._point
 
     def get_eq(self):
+        # генерируем соответствующее уравнение
         eq = [1]
         for power in range(1, self._t):
             eq.append(self._point ** power)
