@@ -3,7 +3,7 @@ from Crypto.Random import get_random_bytes
 import logging
 import hmac
 import hashlib
-from Kuznechik import encrypt_kuznechik, decrypt_kuznechik
+from applied_cryptography_1.Lab4.Kuznechik import encrypt_kuznechik, decrypt_kuznechik
 from typing import Union
 
 BLOCK_LENGTH = 16

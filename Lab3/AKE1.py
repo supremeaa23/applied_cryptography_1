@@ -1,7 +1,7 @@
 import uuid
 from Crypto.Random import get_random_bytes
 from PKCS1 import PKCS1_encrypt, PKCS1_decrypt
-from GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
+from applied_cryptography_1.Lab6.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
 import logging
 
 PUBLIC_KEY_PATH = "key/id_rsa.pub"
@@ -89,6 +89,7 @@ class AKE1Server:
     def set_session_key(self):
         # генерируем сессионный ключ
         self._session_key = get_random_bytes(RANDOM_LENGTH)
+
         logger.info(f"User {self._usr_id} set session key")
 
     def encrypt_session_key(self, message):

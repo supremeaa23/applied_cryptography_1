@@ -26,12 +26,11 @@ def get_key_by_lagrange_interpolation(users, P):
 def get_key_by_eq(users, P):
     # Восстановление секрета путём решения СЛАУ
     try:
-        equations = list()
+        eqs = list()
         for user in users:
-            equations.append(user.get_eq())
-
-        matrix = Matrix([eq[0] for eq in equations])
-        vector = Matrix([eq[1] for eq in equations])
+            eqs.append(user.get_eq())
+        matrix = Matrix([eq[0] for eq in eqs])
+        vector = Matrix([eq[1] for eq in eqs])
 
         det = int(matrix.det())
 

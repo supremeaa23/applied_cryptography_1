@@ -87,21 +87,27 @@ class ShamirDealer:
             self._points.append(point)
 
     def get_points(self):
+        # получаем точки
         return self._points
 
     def get_point(self, index):
+        # получаем точку по индексу
         return self._points[index]
 
     def get_random_element(self):
+        # генерируем рандомный элемент поля
         return randint(2, self.P - 2)
 
     def set_key(self):
+        # устанавливаем секрет
         self._key = self.get_random_element()
 
     def get_key(self):
+        # получаем секрет
         return self._key
 
     def get_value(self, index):
+        # получаем значение по индексу
         return self._values[index]
 
     def set_coefficients(self):
@@ -137,9 +143,11 @@ class ShamirUser:
         self._value = value
 
     def get_value(self):
+        # получаем значение
         return self._value
 
     def get_point(self):
+        # получаем точку
         return self._point
 
     def get_eq(self):

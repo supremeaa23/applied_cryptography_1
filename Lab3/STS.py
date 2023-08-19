@@ -3,7 +3,7 @@ import uuid
 import logging
 import gmpy2
 from random import randint
-from GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
+from applied_cryptography_1.Lab6.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
 from Kuznechik import encrypt_kuznechik, decrypt_kuznechik
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
