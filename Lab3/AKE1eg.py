@@ -4,7 +4,7 @@ import logging
 from Crypto.Random import get_random_bytes
 import gmpy2
 from random import randint
-from applied_cryptography_1.Lab6.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
+from applied_cryptography_1.blochain_model.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("AKE1-eg Protocol")

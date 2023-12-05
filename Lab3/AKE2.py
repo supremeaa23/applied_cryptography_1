@@ -2,7 +2,7 @@ import uuid
 import logging
 from Crypto.Random import get_random_bytes
 from PKCS1 import PKCS1_encrypt, PKCS1_decrypt
-from applied_cryptography_1.Lab6.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
+from applied_cryptography_1.blochain_model.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
 
 PUBLIC_KEY_PATH = "key/id_rsa.pub"
 PRIVATE_KEY_PATH = "key/id_rsa"

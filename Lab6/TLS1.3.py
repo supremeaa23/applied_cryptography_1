@@ -3,7 +3,7 @@ import pickle
 import uuid
 import logging
 from pygost import gost3410
-from GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
+from applied_cryptography_1.blochain_model.GOST3410 import get_public_key, get_dgst, sign_data, verify_signature
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Cipher import AES
@@ -237,7 +237,7 @@ class TLSClient1:
         dgst = gmpy2.to_binary(self._db["dh public key"]) + self._nonce + self._offer[0].encode() + \
                gmpy2.to_binary(server_dh_public_key) + \
                self._offer[0].encode() + server_nonce + pickle.dumps(c1) + pickle.dumps(c2)
-        if not verify_signature(pub=signature_server_public_key,
+        if not verify_signsature(pub=signature_server_public_key,
                                 signature=signature,
                                 dgst=get_dgst(dgst)):
             raise CAIdentificationsError("Signature wasn't confirmed.")

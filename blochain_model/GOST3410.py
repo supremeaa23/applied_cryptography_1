@@ -6,7 +6,7 @@ from os import urandom
 curve = CURVES["id-tc26-gost-3410-12-512-paramSetA"]
 
 
-def get_public_key():
+def get_keys():
     prv_raw = urandom(64)
     prv = prv_unmarshal(prv_raw)
     pub = public_key(curve, prv)
@@ -26,9 +26,11 @@ def sign_data(data_for_signing: bytes, prv):
 def verify_signature(pub, signature, dgst) -> bool:
     return verify(curve, pub, dgst, signature)
 
-
+#
 # data = b"sixteen-byte-msg"
-# pub, prv = get_public_key()
+# pub, prv = get_keys()
+# print(type(pub))
+# print(type(prv))
 # signature = sign_data(data, prv)
 # print(verify_signature(pub, signature, get_dgst(data)))
 
