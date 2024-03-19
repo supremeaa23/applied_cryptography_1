@@ -267,6 +267,7 @@ class Node:
                 utxo = {'address': transaction_output['output_address'],
                         'amount': transaction_output['output_amount']}
                 self.utxo.append(utxo)
+        return True
 
     def receive_block(self, block):
         """Получение блока от другого узла сети"""
